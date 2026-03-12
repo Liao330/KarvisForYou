@@ -1069,6 +1069,22 @@ def _run_system_action_for_user(action, data, uid, ctx):
         _log(f"[system_action] {action} 完成, user={uid}, has_reply={bool(reply)}, 耗时={time.time()-t0:.1f}s")
         return {"ok": True, "has_reply": bool(reply)}
 
+    if action == "sleep_report":
+        _log(f"[system_action] sleep_report: 推送昨夜睡眠报告, user={uid}")
+        reply = _build_sleep_report(uid, ctx)
+        if reply:
+            channel_router.send_message(uid, reply)
+        _log(f"[system_action] sleep_report 完成, user={uid}, has_reply={bool(reply)}")
+        return {"ok": True, "has_reply": bool(reply)}
+
+    if action == "health_summary":
+        _log(f"[system_action] health_summary: 推送今日健康小结, user={uid}")
+        reply = _build_health_summary(uid, ctx)
+        if reply:
+            channel_router.send_message(uid, reply)
+        _log(f"[system_action] health_summary 完成, user={uid}, has_reply={bool(reply)}")
+        return {"ok": True, "has_reply": bool(reply)}
+
     if action == "reflect_push":
         from skills.reflect import push as reflect_push
         state = read_state_cached(ctx) or {}
@@ -1747,6 +1763,118 @@ def _check_pending_todos(ctx):
 
 # ============ V3-F13: 天气信息流辅助函数 ============
 
+def _build_sleep_report(uid, ctx):
+    """下午4点推送：读昨天的 HealthKit 缓存，生成睡眠质量报告"""
+    import json as _json
+    yesterday = (datetime.now(BEIJING_TZ) - timedelta(days=1)).strftime("%Y-%m-%d")
+    cache_file = os.path.join(ctx.base_dir, "_Karvis", "healthkit", f"{yesterday}.json")
+    hk = {}
+    if os.path.exists(cache_file):
+        try:
+            with open(cache_file, "r", encoding="utf-8") as f:
+                hk = _json.load(f)
+        except Exception:
+            pass
+
+    sleep_hours = hk.get("sleep_hours")
+    sleep_start = hk.get("sleep_start", "")
+    sleep_end = hk.get("sleep_end", "")
+
+    if not sleep_hours:
+        return f"🌙 昨夜睡眠数据还没有同步过来，记得在快捷指令里上传一下哦～"
+
+    # 睡眠质量评价
+    try:
+        h = float(sleep_hours)
+    except (TypeError, ValueError):
+        h = 0
+
+    if h >= 8:
+        quality = "睡得很充足 💤，精力满满！"
+    elif h >= 7:
+        quality = "睡眠不错 😊，状态应该挺好的。"
+    elif h >= 6:
+        quality = "睡眠稍短了一点 😐，午休可以补一下。"
+    elif h >= 5:
+        quality = "睡眠不够 😴，今天注意别太消耗体力。"
+    else:
+        quality = "睡眠严重不足 😵，好好照顾自己！"
+
+    time_str = ""
+    if sleep_start and sleep_end:
+        time_str = f"（{sleep_start} 入睡，{sleep_end} 起床）"
+
+    return (
+        f"🌙 昨夜睡眠报告\n\n"
+        f"⏱ 睡眠时长：{h:.1f} 小时 {time_str}\n"
+        f"📊 {quality}"
+    )
+
+
+def _build_health_summary(uid, ctx):
+    """23:59 推送：读今天的 HealthKit 缓存，生成健康小结"""
+    import json as _json
+    today = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d")
+    cache_file = os.path.join(ctx.base_dir, "_Karvis", "healthkit", f"{today}.json")
+    hk = {}
+    if os.path.exists(cache_file):
+        try:
+            with open(cache_file, "r", encoding="utf-8") as f:
+                hk = _json.load(f)
+        except Exception:
+            pass
+
+    if not hk or not any(hk.get(k) for k in ("steps", "water_ml", "hrv", "rhr")):
+        return None  # 没数据就不推
+
+    lines = [f"⌚ 今日健康小结 · {today}\n"]
+
+    steps = hk.get("steps")
+    if steps:
+        try:
+            s = int(float(str(steps).split("\n")[0]))
+            if s >= 10000:
+                comment = "🔥 完成目标！"
+            elif s >= 6000:
+                comment = "👍 不错"
+            elif s >= 3000:
+                comment = "😐 还可以多走走"
+            else:
+                comment = "🛋️ 今天比较静"
+            lines.append(f"👟 步数：{s:,} 步 {comment}")
+        except Exception:
+            pass
+
+    water = hk.get("water_ml")
+    if water:
+        try:
+            w = int(float(str(water).split("\n")[0]))
+            w_comment = "💧 喝水充足" if w >= 1500 else "💧 记得多喝水"
+            lines.append(f"💧 饮水：{w} ml {w_comment}")
+        except Exception:
+            pass
+
+    hrv = hk.get("hrv")
+    if hrv:
+        try:
+            lines.append(f"❤️ HRV：{float(hrv):.1f} ms")
+        except Exception:
+            pass
+
+    rhr = hk.get("rhr")
+    if rhr:
+        try:
+            lines.append(f"💓 静息心率：{int(float(rhr))} bpm")
+        except Exception:
+            pass
+
+    battery = hk.get("body_battery")
+    if battery is not None:
+        lines.append(f"⚡ 身体电量：{battery}%")
+
+    return "\n".join(lines)
+
+
 def _build_weather_context():
     """
     V3-F13: 获取天气信息，供 morning_report 注入。
@@ -1879,6 +2007,22 @@ def _generate_daily_intents(state, ctx=None):
             "earliest": _add_minutes(sleep_time, -90),
             "latest": _add_minutes(sleep_time, -15),
             "ideal": _add_minutes(sleep_time, -60),
+            "priority": "normal",
+            "status": "pending"
+        },
+        {
+            "type": "sleep_report",
+            "earliest": "15:30",
+            "latest": "16:30",
+            "ideal": "16:00",
+            "priority": "normal",
+            "status": "pending"
+        },
+        {
+            "type": "health_summary",
+            "earliest": "23:59",
+            "latest": "23:59",
+            "ideal": "23:59",
             "priority": "normal",
             "status": "pending"
         },
