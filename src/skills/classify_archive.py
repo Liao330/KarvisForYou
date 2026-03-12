@@ -26,6 +26,7 @@ def _build_category_map(ctx):
         "work": {"dir": ctx.work_notes_dir, "emoji": "💼", "label": "工作笔记"},
         "emotion": {"dir": ctx.emotion_notes_dir, "emoji": "💭", "label": "情感日记"},
         "fun": {"dir": ctx.fun_notes_dir, "emoji": "😂", "label": "生活趣事"},
+        "fitness": {"dir": ctx.fitness_notes_dir, "emoji": "💪", "label": "健身记录"},
         "misc": {"emoji": "📝", "label": "碎碎念"},
     }
 
@@ -98,7 +99,7 @@ def execute(params, state, ctx):
         confirm_hint = f"✅ 已归档到「{cat_info['label']}」"
         if title:
             confirm_hint += f"：{title[:20]}"
-        confirm_hint += "\n（分类不对？回复「撤销」或「改为工作/情感/生活/碎碎念」）"
+        confirm_hint += "\n（分类不对？回复「撤销」或「改为工作/情感/健身/生活/碎碎念」）"
         if category != "misc" and file_path:
             state["last_archive"] = {
                 "file_path": file_path,

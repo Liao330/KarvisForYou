@@ -92,6 +92,7 @@ class UserContext:
         self.work_notes_dir = os.path.join(_notes, "工作笔记")
         self.emotion_notes_dir = os.path.join(_notes, "情感日记")
         self.fun_notes_dir = os.path.join(_notes, "生活趣事")
+        self.fitness_notes_dir = os.path.join(_notes, "健身记录")
         self.voice_journal_dir = os.path.join(_notes, "语音日记")
 
         # _Karvis 系统文件（memory 走 IO，config/log 始终本地）
@@ -130,6 +131,7 @@ class UserContext:
         self.work_notes_dir = f"{base}/02-Notes/工作笔记"
         self.emotion_notes_dir = f"{base}/02-Notes/情感日记"
         self.fun_notes_dir = f"{base}/02-Notes/生活趣事"
+        self.fitness_notes_dir = f"{base}/02-Notes/健身记录"
         self.voice_journal_dir = f"{base}/02-Notes/语音日记"
 
         # _Karvis 系统文件
