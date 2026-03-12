@@ -327,6 +327,10 @@ def _call_deepseek(messages, max_tokens=500, temperature=0.3,
     # V3.2 支持 thinking 模式控制
     if "v3.2" in DEEPSEEK_MODEL:
         data["enable_thinking"] = enable_thinking
+    # qwen3 系列：Flash 场景关闭 thinking 加速
+    elif "qwen3" in DEEPSEEK_MODEL:
+        if not enable_thinking:
+            data["enable_thinking"] = False
 
     total_chars = sum(len(m.get("content", "")) for m in messages)
     tier_label = "Think" if enable_thinking else "Main"
@@ -345,7 +349,12 @@ def _call_deepseek(messages, max_tokens=500, temperature=0.3,
              f"completion_tokens={usage.get('completion_tokens')}")
         _log_llm_usage("think" if enable_thinking else "main",
                        DEEPSEEK_MODEL, usage, t1 - t0)
-        return result["choices"][0]["message"]["content"]
+        msg = result["choices"][0]["message"]
+        content = msg.get("content") or ""
+        # 兼容 thinking 模式：如果 content 为空，回退读取 reasoning_content
+        if not content.strip() and msg.get("reasoning_content"):
+            content = msg["reasoning_content"]
+        return content
 
     _log(f"[Brain][{tier_label}] DeepSeek API 错误: {resp.status_code} - {resp.text[:200]}")
     raise RuntimeError(f"DeepSeek API {resp.status_code}")
@@ -365,6 +374,12 @@ def _call_qwen_flash(messages, max_tokens=500, temperature=0.3):
         "temperature": temperature
     }
 
+    # qwen3.5-flash 等模型默认开启 thinking，Flash 场景不需要，显式关闭以加速
+    if "qwen3" in QWEN_MODEL:
+        data["extra_body"] = {"enable_thinking": False}
+        # 百炼 OpenAI 兼容接口的关闭方式
+        data["enable_thinking"] = False
+
     total_chars = sum(len(m.get("content", "")) for m in messages)
     _log(f"[Brain][Flash] Qwen请求: model={QWEN_MODEL}, "
          f"prompt_chars={total_chars}, max_tokens={max_tokens}")
@@ -380,7 +395,12 @@ def _call_qwen_flash(messages, max_tokens=500, temperature=0.3):
              f"prompt_tokens={usage.get('prompt_tokens')}, "
              f"completion_tokens={usage.get('completion_tokens')}")
         _log_llm_usage("flash", QWEN_MODEL, usage, t1 - t0)
-        return result["choices"][0]["message"]["content"]
+        msg = result["choices"][0]["message"]
+        content = msg.get("content") or ""
+        # 兼容 thinking 模式：如果 content 为空，回退读取 reasoning_content
+        if not content.strip() and msg.get("reasoning_content"):
+            content = msg["reasoning_content"]
+        return content
 
     _log(f"[Brain][Flash] Qwen API 错误: {resp.status_code} - {resp.text[:200]}")
     raise RuntimeError(f"Qwen API {resp.status_code}")
@@ -783,6 +803,11 @@ def process(payload, send_fn=None, ctx=None):
     decision = _parse_llm_output(llm_response)
     if not decision:
         _log(f"[Brain] JSON 解析失败，原始: {llm_response[:300]}")
+        # 如果模型返回了纯文本（非空），视为闲聊回复直接返回给用户
+        plain_text = llm_response.strip()
+        if plain_text and payload.get("type") != "system":
+            _log(f"[Brain] 将纯文本作为闲聊回复返回")
+            return {"reply": plain_text}
         if payload.get("type") != "system":
             _save_to_quick_notes(payload, state, ctx)
         return {"reply": "已记录到 Obsidian"}
@@ -1092,6 +1117,7 @@ _SIMPLE_SKILLS = frozenset({
     "checkin.start", "checkin.answer", "checkin.skip", "checkin.cancel",
     "book.create", "book.excerpt", "book.thought", "book.summary", "book.quotes",
     "media.create", "media.thought",
+    "hot.news",
     "mood.generate", "voice.journal",
     "settings.nickname", "settings.ai_name", "settings.soul", "settings.info",
     "web.token",
@@ -1443,6 +1469,10 @@ def _parse_llm_output(text):
             lines = lines[:-1]
         text = "\n".join(lines).strip()
 
+    # 修复模型输出双花括号 {{...}} 的问题（qwen3.5-flash 常见）
+    if text.startswith("{{") and text.endswith("}}"):
+        text = text[1:-1]
+
     # 尝试直接解析
     try:
         return json.loads(text)
@@ -1453,8 +1483,12 @@ def _parse_llm_output(text):
     start = text.find("{")
     end = text.rfind("}")
     if start >= 0 and end > start:
+        json_str = text[start:end + 1]
+        # 再次检查双花括号
+        if json_str.startswith("{{") and json_str.endswith("}}"):
+            json_str = json_str[1:-1]
         try:
-            return json.loads(text[start:end + 1])
+            return json.loads(json_str)
         except json.JSONDecodeError:
             pass
 

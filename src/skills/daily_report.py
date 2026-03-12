@@ -27,8 +27,18 @@ def execute(params, state, ctx):
 
     _log(f"[daily.generate] 开始生成 {date_str} 日报")
 
-    # 1. 收集当天所有内容
-    notes = _collect_today_notes(date_str, ctx)
+    # 1. 并发：收集当天笔记 + 获取今日热搜
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    try:
+        from brain import _executor as pool
+    except ImportError:
+        pool = ThreadPoolExecutor(max_workers=2)
+
+    fut_notes = pool.submit(_collect_today_notes, date_str, ctx)
+    fut_hot = pool.submit(_fetch_hot_news_safe)
+
+    notes = fut_notes.result(timeout=30)
+    hot_news_items = fut_hot.result(timeout=15)
 
     if not notes.strip():
         _log("[daily.generate] 今天没有笔记内容")
@@ -41,8 +51,8 @@ def execute(params, state, ctx):
     if not analysis:
         return {"success": False, "reply": "AI 分析失败，日报生成中止"}
 
-    # 3. 构建日报 Markdown
-    daily_md = _build_daily_report(date_str, analysis, notes)
+    # 3. 构建日报 Markdown（含今日热点）
+    daily_md = _build_daily_report(date_str, analysis, notes, hot_news_items)
 
     # 4. 写入 Daily Note（合并，不覆盖打卡内容）
     file_path = f"{ctx.daily_notes_dir}/{date_str}.md"
@@ -52,9 +62,21 @@ def execute(params, state, ctx):
         _log(f"[daily.generate] 日报已写入: {file_path}")
         mood = analysis.get("mood", "")
         summary = analysis.get("summary", "")[:60]
-        return {"success": True, "reply": f"日报已生成 {mood}\n{summary}"}
+        hot_count = len(hot_news_items) if hot_news_items else 0
+        extra = f"\n🔥 含今日热点 Top {hot_count}" if hot_count else ""
+        return {"success": True, "reply": f"日报已生成 {mood}\n{summary}{extra}"}
     else:
         return {"success": False, "reply": "日报写入失败"}
+
+
+def _fetch_hot_news_safe():
+    """安全获取热搜，失败不影响日报生成"""
+    try:
+        from hot_news import fetch_hot_news
+        return fetch_hot_news(top_n=10)
+    except Exception as e:
+        _log(f"[daily.generate] 获取热搜失败(不影响日报): {e}")
+        return []
 
 
 def _collect_today_notes(date_str, ctx):
@@ -152,7 +174,7 @@ def _ai_analyze(notes, date_str, call_deepseek):
     return None
 
 
-def _build_daily_report(date_str, analysis, notes):
+def _build_daily_report(date_str, analysis, notes, hot_news_items=None):
     """构建日报 Markdown"""
     mood = analysis.get("mood", "📝")
     summary = analysis.get("summary", "")
@@ -184,6 +206,13 @@ def _build_daily_report(date_str, analysis, notes):
 
     if insights:
         lines.extend([f"**洞察**: {insights}", ""])
+
+    # 今日热点板块
+    if hot_news_items:
+        from hot_news import format_hot_news_markdown
+        hot_md = format_hot_news_markdown(hot_news_items)
+        if hot_md:
+            lines.extend(["---", "", hot_md])
 
     lines.extend([
         "---",

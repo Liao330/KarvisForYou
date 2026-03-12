@@ -622,7 +622,8 @@ def handle_message(msg, user_id):
                     model_tier="flash", max_tokens=20, temperature=0
                 )
                 nickname = (nickname or "").strip().strip('"\'""''')
-                if not nickname:
+                # 模型可能返回"空"、"无"等表示无法识别的文字
+                if not nickname or nickname in ('空', '无', 'null', 'none', 'N/A', '未知'):
                     channel_router.send_message(user_id, "没听清名字呢，再说一次？直接打名字就行~")
                     return
 

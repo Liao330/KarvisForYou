@@ -47,7 +47,8 @@ SKILL_PROMPT_LINES = {
     "todo.remind_cancel": '**todo.remind_cancel** `{id?, content?}` — 取消循环提醒（id精确匹配或content模糊匹配）',
     "todo.list": '**todo.list** `{}` — 查看待办（返回带序号的列表，用户后续可用序号引用）',
     "classify.archive": '**classify.archive** `{category, title, content, attachment?, merge?}` — 归档（category: work|emotion|fun|misc, title≤10字）。当用户紧接着上一条消息（尤其是图片/语音/视频）发送补充说明时，设 `merge: true`，内容会合并到最近一条同类归档中，而非新建条目。',
-    "daily.generate": '**daily.generate** `{date?}` — 生成日报（默认今天）',
+    "daily.generate": '**daily.generate** `{date?}` — 生成日报（默认今天，含今日热点）',
+    "hot.news": '**hot.news** `{top_n?}` — 获取今日热搜 Top N（默认10条，来自今日头条热搜榜）',
     "book.create": '**book.create** `{name, author, category, description, thought?}` — 创建/切换读书笔记（用你的知识填书籍信息）',
     "book.excerpt": '**book.excerpt** `{content, book?}` — 添加书摘',
     "book.thought": '**book.thought** `{content, book?}` — 添加读书感想',
@@ -435,26 +436,26 @@ RULES_SKILLS_MGMT = """## Skill 管理（V12）
 OUTPUT_FORMAT = """## 输出格式（严格 JSON，不要加 markdown 代码块标记，尽量简短）
 
 单步操作（大多数场景）：
-{{
+{
   "thinking": "一句话推理",
   "skill": "skill.name",
-  "params": {{ }},
+  "params": { },
   "reply": "简短回复",
-  "state_updates": {{ }},
+  "state_updates": { },
   "memory_updates": [],
   "continue": false
-}}
+}
 
 多步操作（用户一句话包含多个动作时，用 steps 替代 skill+params）：
-{{
+{
   "thinking": "一句话推理",
   "steps": [
-    {{"skill": "todo.done", "params": {{"indices": "2-7"}}}},
-    {{"skill": "todo.add", "params": {{"content": "新任务"}}}}
+    {"skill": "todo.done", "params": {"indices": "2-7"}},
+    {"skill": "todo.add", "params": {"content": "新任务"}}
   ],
   "reply": "简短回复",
   "memory_updates": []
-}}
+}
 
 什么时候用 steps：用户一句话提到多个独立操作时（如"帮我加三个待办"、"把2和5完成再加个新的"）。大多数情况用单步格式即可。
 
