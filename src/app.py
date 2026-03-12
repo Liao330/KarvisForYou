@@ -132,23 +132,42 @@ def get_wework_access_token():
 
 # ============ 消息发送 ============
 
-def send_wework_message(user_id, content):
-    """发送企业微信文本消息"""
+def send_wework_message(user_id, content, msgtype="text"):
+    """
+    发送企业微信消息。
+    msgtype: "text"（默认）或 "markdown"（支持链接/加粗/换行）
+    内容中含 [MARKDOWN] 前缀时自动切换为 markdown 类型。
+    """
+    # 自动检测：内容以 [MARKDOWN] 开头时强制用 markdown
+    if content.startswith("[MARKDOWN]"):
+        content = content[len("[MARKDOWN]"):].lstrip("\n")
+        msgtype = "markdown"
+
     token = get_wework_access_token()
     if not token:
         return False
     url = f"https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token={token}"
-    data = {
-        "touser": user_id,
-        "msgtype": "text",
-        "agentid": AGENT_ID,
-        "text": {"content": content}
-    }
+
+    if msgtype == "markdown":
+        data = {
+            "touser": user_id,
+            "msgtype": "markdown",
+            "agentid": AGENT_ID,
+            "markdown": {"content": content}
+        }
+    else:
+        data = {
+            "touser": user_id,
+            "msgtype": "text",
+            "agentid": AGENT_ID,
+            "text": {"content": content}
+        }
+
     resp = requests.post(url, json=data, timeout=10)
     result = resp.json()
     ok = result.get("errcode") == 0
     if not ok:
-        _log(f"[回复] 发送失败: {result}")
+        _log(f"[回复] 发送失败 (msgtype={msgtype}): {result}")
     return ok
 
 
@@ -1046,6 +1065,10 @@ def _run_system_action_for_user(action, data, uid, ctx):
         reply = result.get("reply") if result else None
         if reply:
             _log(f"[system_action] {action}: 发送回复给 {uid}, len={len(reply)}")
+            # 晨报/晚签到/日报统一用 markdown 发送，支持链接渲染
+            if action in ("morning_report", "evening_checkin", "daily_report"):
+                if not reply.startswith("[MARKDOWN]"):
+                    reply = "[MARKDOWN]\n" + reply
             channel_router.send_message(uid, reply)
         _log(f"[system_action] {action} 完成, user={uid}, has_reply={bool(reply)}, 耗时={time.time()-t0:.1f}s")
         return {"ok": True, "has_reply": bool(reply)}

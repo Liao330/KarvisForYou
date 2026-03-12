@@ -83,7 +83,7 @@ def execute(params, state, ctx):
         if insights:
             reply_lines.append(f"💡 **小建议**：{insights[:60]}")
 
-        return {"success": True, "reply": "\n".join(reply_lines).strip()}
+        return {"success": True, "reply": "[MARKDOWN]\n" + "\n".join(reply_lines).strip()}
     else:
         return {"success": False, "reply": "日报写入失败"}
 
