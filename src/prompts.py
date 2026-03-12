@@ -71,6 +71,7 @@ SKILL_PROMPT_LINES = {
     "internal.search": '**internal.search** `{keywords, scope?, max_results?}` — [Agent Loop 专用] 在笔记中搜索关键词（scope: quick_notes|archives|all）',
     "internal.list": '**internal.list** `{directory}` — [Agent Loop 专用] 列出指定目录下的文件列表',
     "settings.nickname": '**settings.nickname** `{nickname}` — 设置用户昵称（用户说"叫我XX"、"我叫XX"时触发。注意区分方向：「叫我XX」是设用户昵称，「叫你XX」是给AI起名）',
+    "settings.schedule": '**settings.schedule** `{wake_time?, sleep_time?}` — 设置推送时间（wake_time=起床时间，sleep_time=入睡时间，格式HH:MM。用户说"我8点起床"→wake_time="08:00"；"晨报改到9点"→wake_time="08:30"即倒推；"晚上11点睡"→sleep_time="23:00"。wake_time 决定晨报时间(+30min)，sleep_time 决定晚签时间(-90min)）',
     "settings.ai_name": '**settings.ai_name** `{ai_name}` — 给 AI 起昵称（用户说"我叫你XX"、"叫你XX"、"你叫XX"时触发。这是用户给 Karvis 起的名字）',
     "settings.soul": '**settings.soul** `{style, mode?}` — 设置 AI 说话风格（mode: set=覆盖, append=在原有基础上追加, reset=恢复默认。用户说"活泼一点/正式一些"→set；"再幽默一点"→append；"恢复默认风格"→reset）',
     "settings.info": '**settings.info** `{info, category?}` — 记录用户个人信息（category: occupation/city/pets/people/other。用户说"我是做设计的"→category=occupation；"我养了一只猫叫花花"→category=pets）',
@@ -432,6 +433,7 @@ RULES_FINANCE = """## 财务管理（仅管理员）
 # V12: Skill 管理规则
 RULES_SKILLS_MGMT = """## Skill 管理（V12）
 - 用户说"我有什么功能"、"有哪些技能"、"功能列表" → settings.skills, action="list"
+- 用户说"X点起床"、"把晨报改到X点"、"X点睡"、"晚签改到X点"、"推送时间改一下" → settings.schedule，提取 wake_time 或 sleep_time
 - 用户说"关掉XX"、"禁用XX"、"不要XX功能" → settings.skills, action="disable", skill_names=["匹配的skill名"]
 - 用户说"开启XX"、"打开XX"、"启用XX" → settings.skills, action="enable", skill_names=["匹配的skill名"]
 - skill_names 使用 Skill 的全名（如 "decision.*" 匹配所有决策相关 skill，"habit.*" 匹配微习惯相关）

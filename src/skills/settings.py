@@ -327,6 +327,92 @@ def _toggle_skills(ctx, skill_names, disable=True):
         return {"success": True, "reply": f"这些功能已经是{action_word}状态啦~"}
 
 
+def set_schedule(params, state, ctx):
+    """
+    设置个人推送时间表。
+    用户说「把晨报改到8点」「我10点起床」「晚上11点睡」等，LLM 提取 wake_time / sleep_time。
+    wake_time 决定：晨报(+30min)、待办提醒(+60~90min)、陪伴检查
+    sleep_time 决定：晚间签到(-90min)、日报(-60min)
+    格式：HH:MM（24小时制）
+    """
+    import re
+
+    def _validate_time(t):
+        """验证并标准化时间格式 HH:MM"""
+        if not t:
+            return None
+        t = str(t).strip()
+        # 支持 "8:00"、"08:00"、"8点"、"20:30" 等
+        t = re.sub(r"[点时]", ":", t)
+        t = re.sub(r"分", "", t)
+        match = re.match(r"^(\d{1,2}):?(\d{0,2})$", t)
+        if not match:
+            return None
+        h = int(match.group(1))
+        m = int(match.group(2)) if match.group(2) else 0
+        if not (0 <= h <= 23 and 0 <= m <= 59):
+            return None
+        return f"{h:02d}:{m:02d}"
+
+    wake_time = _validate_time(params.get("wake_time"))
+    sleep_time = _validate_time(params.get("sleep_time"))
+
+    if not wake_time and not sleep_time:
+        return {
+            "success": False,
+            "reply": "没有识别到时间，试试说「我8点起床」或「把晨报改到9点」？"
+        }
+
+    config = ctx.get_user_config()
+    if "schedule" not in config:
+        config["schedule"] = {}
+
+    changes = []
+
+    if wake_time:
+        config["schedule"]["wake_time"] = wake_time
+        # 晨报 = 起床 + 30min
+        morning_h = int(wake_time.split(":")[0])
+        morning_m = int(wake_time.split(":")[1]) + 30
+        if morning_m >= 60:
+            morning_h += 1
+            morning_m -= 60
+        morning_time = f"{morning_h:02d}:{morning_m:02d}"
+        changes.append(f"起床时间 → {wake_time}，晨报约 {morning_time}")
+
+    if sleep_time:
+        config["schedule"]["sleep_time"] = sleep_time
+        # 晚间签到 = 入睡 - 90min
+        sleep_h = int(sleep_time.split(":")[0])
+        sleep_m = int(sleep_time.split(":")[1]) - 90
+        if sleep_m < 0:
+            sleep_h -= 1
+            sleep_m += 60
+        checkin_time = f"{sleep_h:02d}:{sleep_m:02d}"
+        changes.append(f"入睡时间 → {sleep_time}，晚签约 {checkin_time}")
+
+    ctx.save_user_config(config)
+
+    # 同步写入 rhythm（立即生效，不等 V8 自学习）
+    from memory import read_state_cached, write_state_and_update_cache
+    s = read_state_cached(ctx) or {}
+    sched_state = s.get("scheduler", {})
+    rhythm = sched_state.get("user_rhythm", {})
+    if wake_time:
+        rhythm["avg_wake_time"] = wake_time
+    if sleep_time:
+        rhythm["avg_sleep_time"] = sleep_time
+    sched_state["user_rhythm"] = rhythm
+    s["scheduler"] = sched_state
+    write_state_and_update_cache(s, ctx)
+
+    _log(f"[Settings] {ctx.user_id} 设置推送时间: wake={wake_time}, sleep={sleep_time}")
+
+    reply = "好的，时间已更新 ✅\n" + "\n".join(f"• {c}" for c in changes)
+    reply += "\n\n明天开始按新时间推送~"
+    return {"success": True, "reply": reply}
+
+
 # ============ Skill 注册 ============
 
 SKILL_REGISTRY = {
@@ -335,4 +421,5 @@ SKILL_REGISTRY = {
     "settings.soul": set_soul,
     "settings.info": set_info,
     "settings.skills": manage_skills,
+    "settings.schedule": set_schedule,
 }

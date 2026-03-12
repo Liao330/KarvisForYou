@@ -1719,15 +1719,23 @@ def _add_minutes(time_str, minutes):
         return time_str
 
 
-def _generate_daily_intents(state):
+def _generate_daily_intents(state, ctx=None):
     """V8: 基于用户节奏画像动态生成当天触达意图队列"""
     sched = state.get("scheduler", {})
     rhythm = sched.get("user_rhythm", {})
     now = datetime.now(BEIJING_TZ)
     is_weekend = now.weekday() >= 5
 
-    wake_time = rhythm.get("avg_wake_time", SCHEDULER_DEFAULT_WAKE)
-    sleep_time = rhythm.get("avg_sleep_time", SCHEDULER_DEFAULT_SLEEP)
+    # 优先读用户在聊天中设置的时间（user_config.schedule），再fallback到V8自学习
+    user_schedule = {}
+    if ctx:
+        try:
+            user_schedule = ctx.get_user_config().get("schedule", {})
+        except Exception:
+            pass
+
+    wake_time = user_schedule.get("wake_time") or rhythm.get("avg_wake_time", SCHEDULER_DEFAULT_WAKE)
+    sleep_time = user_schedule.get("sleep_time") or rhythm.get("avg_sleep_time", SCHEDULER_DEFAULT_SLEEP)
 
     if is_weekend:
         shift = rhythm.get("weekend_shift", SCHEDULER_WEEKEND_SHIFT)
@@ -1823,7 +1831,7 @@ def _daily_init(uid, ctx):
         _log(f"[V8][{uid}] daily_init 检测到已有执行中/已完成的意图队列，跳过覆盖")
         return {"skipped": True, "reason": "intents_already_active"}
 
-    intents = _generate_daily_intents(state)
+    intents = _generate_daily_intents(state, ctx=ctx)
 
     # 过期意图标记 skipped（容器重启等场景）
     now_min = now.hour * 60 + now.minute
