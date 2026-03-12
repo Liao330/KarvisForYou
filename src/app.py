@@ -1007,6 +1007,19 @@ def _run_system_action_for_user(action, data, uid, ctx):
                 if hot_news:
                     context["hot_news"] = hot_news
                     _log(f"[/system] [{uid}] 热点获取成功: {len(hot_news)} 条")
+                    # 顺手缓存当天热点，供日报重新生成时读取
+                    try:
+                        import json as _json
+                        today_str = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d")
+                        _cache_dir = os.path.join(ctx.base_dir, "_Karvis", "hot_news")
+                        os.makedirs(_cache_dir, exist_ok=True)
+                        _cache_file = os.path.join(_cache_dir, f"{today_str}.json")
+                        if not os.path.exists(_cache_file):  # 一天只存一次
+                            with open(_cache_file, "w", encoding="utf-8") as _f:
+                                _json.dump(hot_news, _f, ensure_ascii=False, indent=2)
+                            _log(f"[/system] [{uid}] 热点已缓存到 {_cache_file}")
+                    except Exception as _ce:
+                        _log(f"[/system] [{uid}] 热点缓存写入失败: {_ce}")
             except Exception as e:
                 _log(f"[/system] [{uid}] 热点获取失败: {e}")
 

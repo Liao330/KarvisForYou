@@ -35,7 +35,7 @@ def execute(params, state, ctx):
         pool = ThreadPoolExecutor(max_workers=2)
 
     fut_notes = pool.submit(_collect_today_notes, date_str, ctx)
-    fut_hot = pool.submit(_fetch_hot_news_safe)
+    fut_hot = pool.submit(_fetch_hot_news_safe, date_str, ctx)
 
     notes = fut_notes.result(timeout=30)
     hot_news_items = fut_hot.result(timeout=15)
@@ -94,14 +94,54 @@ def execute(params, state, ctx):
         return {"success": False, "reply": "日报写入失败"}
 
 
-def _fetch_hot_news_safe():
-    """安全获取热搜（多源：头条+微博），失败不影响日报生成"""
+def _fetch_hot_news_safe(date_str=None, ctx=None):
+    """
+    获取热搜：优先读当天已缓存的文件，没有才现抓并存下来。
+    缓存路径：{karvis_dir}/hot_news/YYYY-MM-DD.json
+    """
+    import json
+    import os
+
+    today = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d")
+    target_date = date_str or today
+
+    # 尝试读缓存
+    if ctx:
+        try:
+            karvis_dir = os.path.join(ctx.base_dir, "_Karvis")
+            cache_dir = os.path.join(karvis_dir, "hot_news")
+            cache_file = os.path.join(cache_dir, f"{target_date}.json")
+            if os.path.exists(cache_file):
+                with open(cache_file, "r", encoding="utf-8") as f:
+                    cached = json.load(f)
+                if cached:
+                    _log(f"[daily.generate] 读取热搜缓存: {target_date} ({len(cached)} 条)")
+                    return cached
+        except Exception as e:
+            _log(f"[daily.generate] 读取热搜缓存失败: {e}")
+
+    # 缓存没有，现抓（只在抓今天的数据时才有意义）
     try:
         from hot_news import fetch_hot_news_multi
-        return fetch_hot_news_multi(top_n=5)  # 头条+微博各5条，合并去重
+        items = fetch_hot_news_multi(top_n=5)
     except Exception as e:
         _log(f"[daily.generate] 获取热搜失败(不影响日报): {e}")
         return []
+
+    # 存到今天的缓存（只存今天的，历史日期不存）
+    if items and ctx and target_date == today:
+        try:
+            karvis_dir = os.path.join(ctx.base_dir, "_Karvis")
+            cache_dir = os.path.join(karvis_dir, "hot_news")
+            os.makedirs(cache_dir, exist_ok=True)
+            cache_file = os.path.join(cache_dir, f"{today}.json")
+            with open(cache_file, "w", encoding="utf-8") as f:
+                json.dump(items, f, ensure_ascii=False, indent=2)
+            _log(f"[daily.generate] 热搜已缓存: {today} ({len(items)} 条)")
+        except Exception as e:
+            _log(f"[daily.generate] 热搜缓存写入失败: {e}")
+
+    return items
 
 
 def _collect_today_notes(date_str, ctx):
