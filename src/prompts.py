@@ -46,7 +46,7 @@ SKILL_PROMPT_LINES = {
     "todo.done": '**todo.done** `{keyword?, indices?}` — 完成待办。keyword=模糊匹配（如"猫粮"匹配"买猫粮"）；indices=序号完成，支持 "3"/"2-7"/"1,3,5"。有 indices 时优先用 indices。序号对应 todo.list 返回的编号。',
     "todo.remind_cancel": '**todo.remind_cancel** `{id?, content?}` — 取消循环提醒（id精确匹配或content模糊匹配）',
     "todo.list": '**todo.list** `{}` — 查看待办（返回带序号的列表，用户后续可用序号引用）',
-    "classify.archive": '**classify.archive** `{category, title, content, attachment?, merge?}` — 归档（category: work|emotion|fun|misc, title≤10字）。当用户紧接着上一条消息（尤其是图片/语音/视频）发送补充说明时，设 `merge: true`，内容会合并到最近一条同类归档中，而非新建条目。',
+    "classify.archive": '**classify.archive** `{category, title, content, attachment?, merge?}` — 归档（category: work|emotion|fitness|fun|misc, title≤15字，保留核心信息不要过度压缩）。当用户紧接着上一条消息（尤其是图片/语音/视频）发送补充说明时，设 `merge: true`，内容会合并到最近一条同类归档中，而非新建条目。',
     "daily.generate": '**daily.generate** `{date?}` — 生成/重新生成日报（date=YYYY-MM-DD，默认今天；用户说「昨日日报」→传昨天日期，「重新生成」→传对应日期，含今日热点）',
     "hot.news": '**hot.news** `{top_n?}` — 获取今日热搜 Top N（默认10条，来自今日头条热搜榜）',
     "book.create": '**book.create** `{name, author, category, description, thought?}` — 创建/切换读书笔记（用你的知识填书籍信息）',
@@ -186,7 +186,8 @@ RULES_CORE = """# 决策规则
 - **注意**：如果消息已被识别为 todo.add，不要再选 classify.archive —— 待办优先级高于归档
 - 不要选 note.save（系统已自动处理），直接选 classify.archive：
   - 工作记录(会议/任务/技术) → work
-  - 情感倾诉/感情相关 → emotion
+  - 情感倾诉/感情相关/心情状态 → emotion
+  - 运动/健身/训练/跑步/骑行/锻炼记录 → fitness
   - 生活趣事/搞笑经历 → fun
   - 无法归类的碎碎念 → misc
 - 纯闲聊/问候/指令类消息 → 不需要归档，选 ignore 或对应功能 skill
