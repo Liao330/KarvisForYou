@@ -40,6 +40,9 @@ def execute(params, state, ctx):
     notes = fut_notes.result(timeout=30)
     hot_news_items = fut_hot.result(timeout=15)
 
+    # 读取 HealthKit 数据（无则跳过，不影响日报生成）
+    healthkit_data = _load_healthkit_data(date_str, ctx)
+
     today_str = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d")
     is_today = (date_str == today_str)
 
@@ -58,7 +61,7 @@ def execute(params, state, ctx):
         return {"success": False, "reply": "AI 分析失败，日报生成中止"}
 
     # 3. 构建日报 Markdown（含今日热点）
-    daily_md = _build_daily_report(date_str, analysis, notes, hot_news_items)
+    daily_md = _build_daily_report(date_str, analysis, notes, hot_news_items, healthkit_data)
 
     # 4. 写入 Daily Note（合并，不覆盖打卡内容）
     file_path = f"{ctx.daily_notes_dir}/{date_str}.md"
@@ -78,6 +81,11 @@ def execute(params, state, ctx):
             for h in highlights[:3]:
                 reply_lines.append(f"• {h}")
             reply_lines.append("")
+
+        # HealthKit 身体数据
+        hk_section = _format_healthkit_section(healthkit_data)
+        if hk_section:
+            reply_lines.extend([hk_section, ""])
 
         # 热点：直接输出完整列表（含链接），不截断
         if hot_news_items:
@@ -143,6 +151,53 @@ def _fetch_hot_news_safe(date_str=None, ctx=None):
             _log(f"[daily.generate] 热搜缓存写入失败: {e}")
 
     return items
+
+
+def _load_healthkit_data(date_str, ctx):
+    """
+    读取指定日期的 HealthKit 缓存数据。
+    路径：{base_dir}/_Karvis/healthkit/YYYY-MM-DD.json
+    返回 dict 或 None（无数据时）
+    """
+    import json
+    import os
+    try:
+        cache_file = os.path.join(ctx.base_dir, "_Karvis", "healthkit", f"{date_str}.json")
+        if os.path.exists(cache_file):
+            with open(cache_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            _log(f"[daily.generate] 读取 HealthKit 数据: {date_str}")
+            return data
+    except Exception as e:
+        _log(f"[daily.generate] 读取 HealthKit 数据失败: {e}")
+    return None
+
+
+def _format_healthkit_section(hk):
+    """将 HealthKit dict 格式化为日报文本段落"""
+    if not hk:
+        return ""
+    lines = ["⌚ 今日身体数据："]
+    if hk.get("steps"):
+        lines.append(f"  • 步数：{int(hk['steps']):,} 步")
+    if hk.get("sleep_hours"):
+        sleep_str = f"{hk['sleep_hours']:.1f} 小时"
+        if hk.get("sleep_start") and hk.get("sleep_end"):
+            sleep_str += f"（{hk['sleep_start']} - {hk['sleep_end']}）"
+        lines.append(f"  • 睡眠：{sleep_str}")
+    if hk.get("water_ml"):
+        lines.append(f"  • 饮水：{int(hk['water_ml'])} ml")
+    if hk.get("body_battery") is not None:
+        lines.append(f"  • 身体电量：{hk['body_battery']}%")
+    if hk.get("hrv"):
+        lines.append(f"  • HRV：{hk['hrv']:.1f} ms")
+    if hk.get("rhr"):
+        lines.append(f"  • 静息心率：{int(hk['rhr'])} bpm")
+    if hk.get("calories_active"):
+        lines.append(f"  • 活动热量：{int(hk['calories_active'])} kcal")
+    if hk.get("note"):
+        lines.append(f"  • 备注：{hk['note']}")
+    return "\n".join(lines) if len(lines) > 1 else ""
 
 
 def _collect_today_notes(date_str, ctx):
@@ -240,7 +295,7 @@ def _ai_analyze(notes, date_str, call_deepseek):
     return None
 
 
-def _build_daily_report(date_str, analysis, notes, hot_news_items=None):
+def _build_daily_report(date_str, analysis, notes, hot_news_items=None, healthkit_data=None):
     """构建日报 Markdown"""
     mood = analysis.get("mood", "📝")
     summary = analysis.get("summary", "")
@@ -272,6 +327,11 @@ def _build_daily_report(date_str, analysis, notes, hot_news_items=None):
 
     if insights:
         lines.extend([f"**洞察**: {insights}", ""])
+
+    # HealthKit 身体数据板块
+    hk_section = _format_healthkit_section(healthkit_data)
+    if hk_section:
+        lines.extend(["---", "", hk_section, ""])
 
     # 今日热点板块
     if hot_news_items:

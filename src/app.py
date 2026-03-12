@@ -1170,6 +1170,85 @@ def health():
     return "Karvis is alive"
 
 
+# ──────────────────────────────────────────────
+# HealthKit 数据接收接口
+# POST /api/healthkit
+# Header: X-Karvis-Token: <ADMIN_TOKEN>
+# Body: JSON，见下方结构
+# ──────────────────────────────────────────────
+@app.route('/api/healthkit', methods=['POST'])
+def api_healthkit():
+    """
+    接收来自 iPhone 快捷指令推送的 HealthKit 数据。
+    存储路径：{base_dir}/_Karvis/healthkit/YYYY-MM-DD.json
+    每天追加/覆盖，日报读取时使用最新一条。
+
+    请求体示例：
+    {
+      "date": "2026-03-12",          // 可选，默认今天
+      "steps": 8432,
+      "sleep_hours": 7.5,
+      "sleep_start": "23:15",        // 可选
+      "sleep_end": "06:45",          // 可选
+      "water_ml": 1800,
+      "hrv": 55.2,                   // 心率变异性 ms
+      "rhr": 58,                     // 静息心率 bpm
+      "body_battery": 72,            // PeakWatch 身体电量 0-100
+      "calories_active": 420,        // 可选
+      "note": "今天状态不错"          // 可选备注
+    }
+    """
+    from config import ADMIN_TOKEN
+    import json as _json
+
+    # 鉴权
+    token = request.headers.get("X-Karvis-Token", "")
+    if not token or token != ADMIN_TOKEN:
+        return _json.dumps({"ok": False, "error": "Unauthorized"}, ensure_ascii=False), 401
+
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+    except Exception:
+        data = {}
+
+    if not data:
+        return _json.dumps({"ok": False, "error": "Empty body"}, ensure_ascii=False), 400
+
+    # 确定日期
+    from datetime import datetime as _dt
+    date_str = data.get("date") or _dt.now(BEIJING_TZ).strftime("%Y-%m-%d")
+    data["date"] = date_str
+    data["received_at"] = _dt.now(BEIJING_TZ).strftime("%Y-%m-%d %H:%M:%S")
+
+    # 找一个已有用户的 base_dir（单用户场景：DEFAULT_USER_ID）
+    from config import DEFAULT_USER_ID
+    try:
+        ctx = _get_user_context(DEFAULT_USER_ID)
+        cache_dir = os.path.join(ctx.base_dir, "_Karvis", "healthkit")
+        os.makedirs(cache_dir, exist_ok=True)
+        cache_file = os.path.join(cache_dir, f"{date_str}.json")
+
+        # 若当天已有数据，合并而非覆盖（多次推送时取最新非空字段）
+        existing = {}
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, "r", encoding="utf-8") as f:
+                    existing = _json.load(f)
+            except Exception:
+                existing = {}
+        existing.update({k: v for k, v in data.items() if v is not None})
+
+        with open(cache_file, "w", encoding="utf-8") as f:
+            _json.dump(existing, f, ensure_ascii=False, indent=2)
+
+        _log(f"[/api/healthkit] 数据已保存: {date_str} → {cache_file}")
+        return _json.dumps({"ok": True, "date": date_str, "file": cache_file}, ensure_ascii=False)
+
+    except Exception as e:
+        _log(f"[/api/healthkit] 保存失败: {e}")
+        return _json.dumps({"ok": False, "error": str(e)}, ensure_ascii=False), 500
+
+
 @app.route('/health', methods=['GET'])
 def health_detail():
     """深度健康检查 — 返回各依赖组件状态"""
