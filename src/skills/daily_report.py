@@ -61,19 +61,38 @@ def execute(params, state, ctx):
     if ok:
         _log(f"[daily.generate] 日报已写入: {file_path}")
         mood = analysis.get("mood", "")
-        summary = analysis.get("summary", "")[:60]
-        hot_count = len(hot_news_items) if hot_news_items else 0
-        extra = f"\n🔥 含今日热点 Top {hot_count}" if hot_count else ""
-        return {"success": True, "reply": f"日报已生成 {mood}\n{summary}{extra}"}
+        summary = analysis.get("summary", "")[:80]
+        highlights = analysis.get("highlights", [])
+
+        # 构建推送给用户的回复（企微 text 支持 <a> 标签）
+        reply_lines = [f"📅 {date_str} 日报 {mood}", ""]
+        if summary:
+            reply_lines.extend([f"🌟 **今日高光**：{summary}", ""])
+        if highlights:
+            for h in highlights[:3]:
+                reply_lines.append(f"• {h}")
+            reply_lines.append("")
+
+        # 热点：直接输出完整列表（含链接），不截断
+        if hot_news_items:
+            from hot_news import format_hot_news_reply
+            hot_reply = format_hot_news_reply(hot_news_items)
+            reply_lines.extend([hot_reply, ""])
+
+        insights = analysis.get("insights", "")
+        if insights:
+            reply_lines.append(f"💡 **小建议**：{insights[:60]}")
+
+        return {"success": True, "reply": "\n".join(reply_lines).strip()}
     else:
         return {"success": False, "reply": "日报写入失败"}
 
 
 def _fetch_hot_news_safe():
-    """安全获取热搜，失败不影响日报生成"""
+    """安全获取热搜（多源：头条+微博），失败不影响日报生成"""
     try:
-        from hot_news import fetch_hot_news
-        return fetch_hot_news(top_n=10)
+        from hot_news import fetch_hot_news_multi
+        return fetch_hot_news_multi(top_n=5)  # 头条+微博各5条，合并去重
     except Exception as e:
         _log(f"[daily.generate] 获取热搜失败(不影响日报): {e}")
         return []
