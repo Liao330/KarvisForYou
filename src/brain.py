@@ -1126,6 +1126,7 @@ _SIMPLE_SKILLS = frozenset({
     "decision.record", "dynamic",
     "reflect.push", "reflect.answer", "reflect.skip", "reflect.history",
     "daily.generate", "weekly.generate", "monthly.generate",
+    "todo.list", "todo.delete", "todo.clear",
 })
 
 # ── 速记智能过滤：规则预筛跳过集合（V-Web-01）──
