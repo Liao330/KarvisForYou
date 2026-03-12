@@ -2018,9 +2018,9 @@ def _generate_daily_intents(state, ctx=None):
         },
         {
             "type": "health_summary",
-            "earliest": "23:59",
+            "earliest": "23:45",
             "latest": "23:59",
-            "ideal": "23:59",
+            "ideal": "23:55",
             "priority": "normal",
             "status": "pending"
         },
