@@ -1256,6 +1256,10 @@ def api_healthkit():
                     existing = _json.load(f)
             except Exception:
                 existing = {}
+        # 兼容拼写错误：calories_actve → calories_active
+        if "calories_actve" in data and "calories_active" not in data:
+            data["calories_active"] = data.pop("calories_actve")
+
         existing.update({k: v for k, v in data.items() if v is not None})
 
         with open(cache_file, "w", encoding="utf-8") as f:
