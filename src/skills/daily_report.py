@@ -40,9 +40,15 @@ def execute(params, state, ctx):
     notes = fut_notes.result(timeout=30)
     hot_news_items = fut_hot.result(timeout=15)
 
+    today_str = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d")
+    is_today = (date_str == today_str)
+
     if not notes.strip():
-        _log("[daily.generate] 今天没有笔记内容")
-        return {"success": True, "reply": f"今天（{date_str}）还没有记录，无法生成日报"}
+        _log(f"[daily.generate] {date_str} 没有笔记内容")
+        if is_today:
+            return {"success": True, "reply": f"今天（{date_str}）还没有记录，等有内容了再生成~"}
+        else:
+            return {"success": True, "reply": f"{date_str} 没有找到任何笔记记录，无法生成日报"}
 
     # 2. 调用 AI 分析
     from brain import call_deepseek

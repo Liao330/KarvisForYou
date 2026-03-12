@@ -47,7 +47,7 @@ SKILL_PROMPT_LINES = {
     "todo.remind_cancel": '**todo.remind_cancel** `{id?, content?}` — 取消循环提醒（id精确匹配或content模糊匹配）',
     "todo.list": '**todo.list** `{}` — 查看待办（返回带序号的列表，用户后续可用序号引用）',
     "classify.archive": '**classify.archive** `{category, title, content, attachment?, merge?}` — 归档（category: work|emotion|fun|misc, title≤10字）。当用户紧接着上一条消息（尤其是图片/语音/视频）发送补充说明时，设 `merge: true`，内容会合并到最近一条同类归档中，而非新建条目。',
-    "daily.generate": '**daily.generate** `{date?}` — 生成日报（默认今天，含今日热点）',
+    "daily.generate": '**daily.generate** `{date?}` — 生成/重新生成日报（date=YYYY-MM-DD，默认今天；用户说「昨日日报」→传昨天日期，「重新生成」→传对应日期，含今日热点）',
     "hot.news": '**hot.news** `{top_n?}` — 获取今日热搜 Top N（默认10条，来自今日头条热搜榜）',
     "book.create": '**book.create** `{name, author, category, description, thought?}` — 创建/切换读书笔记（用你的知识填书籍信息）',
     "book.excerpt": '**book.excerpt** `{content, book?}` — 添加书摘',
@@ -288,7 +288,6 @@ skill 选 `none`，直接在 reply 中输出。
 
 ### daily_report（每天 22:30）
 触发日报生成。skill 选 `daily.generate`，不需要额外参数。
-
 ### reflect_push（每天 ~20:30）
 推送深度自问。skill 选 `reflect.push`，不需要额外参数。
 每天一个深度问题，引导用户自我探索。
@@ -436,6 +435,9 @@ RULES_SKILLS_MGMT = """## Skill 管理（V12）
 - 用户说"X点起床"、"把晨报改到X点"、"X点睡"、"晚签改到X点"、"推送时间改一下" → settings.schedule，提取 wake_time 或 sleep_time
 - 用户说"关掉XX"、"禁用XX"、"不要XX功能" → settings.skills, action="disable", skill_names=["匹配的skill名"]
 - 用户说"开启XX"、"打开XX"、"启用XX" → settings.skills, action="enable", skill_names=["匹配的skill名"]
+- 用户说"生成日报"、"今日日报"、"发日报" → daily.generate，不传 date（默认今天）
+- 用户说"昨日日报"、"发昨天的日报"、"重新生成昨天日报"、"昨天的总结" → daily.generate，date=昨天日期（YYYY-MM-DD）
+- 用户说"X月X日日报"、"X号的日报"、"重新生成X日日报" → daily.generate，date=对应日期（YYYY-MM-DD）
 - skill_names 使用 Skill 的全名（如 "decision.*" 匹配所有决策相关 skill，"habit.*" 匹配微习惯相关）
 - 如果用户说的功能名不精确，用你的判断匹配最接近的 skill 名"""
 
