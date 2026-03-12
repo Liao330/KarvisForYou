@@ -76,6 +76,16 @@ def execute(params, state, ctx):
         _log(f"[weekly.review] 周报已写入: {file_path}")
         mood_avg = analysis.get("mood_avg", "?")
         insight = analysis.get("insight", "")[:60]
+
+        # 周报完成后触发记忆蒸馏（异步，不阻塞回复）
+        try:
+            import threading
+            from memory import distill_memory
+            threading.Thread(target=distill_memory, args=(ctx,), daemon=True).start()
+            _log(f"[weekly.review] 已触发记忆蒸馏 ({ctx.user_id})")
+        except Exception as e:
+            _log(f"[weekly.review] 记忆蒸馏触发失败: {e}")
+
         return {
             "success": True,
             "reply": f"📅 周回顾已生成（{period_str}）\n情绪均分：{mood_avg}/10\n{insight}"

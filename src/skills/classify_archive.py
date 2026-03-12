@@ -94,6 +94,11 @@ def execute(params, state, ctx):
 
     if ok:
         _log(f"[classify.archive] 已归档到 {cat_info['label']}: {(title or content)[:40]}")
+        # 轻量确认提示：告知用户分类结果，方便纠正
+        confirm_hint = f"✅ 已归档到「{cat_info['label']}」"
+        if title:
+            confirm_hint += f"：{title[:20]}"
+        confirm_hint += "\n（分类不对？回复「撤销」或「改为工作/情感/生活/碎碎念」）"
         if category != "misc" and file_path:
             state["last_archive"] = {
                 "file_path": file_path,
@@ -101,8 +106,8 @@ def execute(params, state, ctx):
                 "title": title,
                 "timestamp": time_str,
             }
-            return {"success": True, "state_updates": {"last_archive": state["last_archive"]}}
-        return {"success": True}
+            return {"success": True, "reply": confirm_hint, "state_updates": {"last_archive": state["last_archive"]}}
+        return {"success": True, "reply": confirm_hint}
     else:
         return {"success": False, "reply": f"归档到{cat_info['label']}失败"}
 

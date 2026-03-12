@@ -934,6 +934,22 @@ def _run_system_action_for_user(action, data, uid, ctx):
     if action == "todo_remind":
         from skills.todo_manage import check_todos
         state = read_state_cached(ctx) or {}
+
+        # V8 节奏感知：用户最近活跃时才推待办，否则静默
+        rhythm = state.get("rhythm", {})
+        now_local = datetime.now(_BEIJING_TZ)
+        last_msg_ts = state.get("last_message_time")
+        if last_msg_ts:
+            try:
+                last_msg_time = datetime.fromisoformat(last_msg_ts).astimezone(_BEIJING_TZ)
+                idle_minutes = (now_local - last_msg_time).total_seconds() / 60
+                # 超过4小时没消息，说明用户可能在忙或休息，降低打扰
+                if idle_minutes > 240:
+                    _log(f"[system_action] todo_remind: {uid} 已 {idle_minutes:.0f} 分钟未活跃，静默跳过")
+                    return {"ok": True, "sent": 0, "reason": "user_idle"}
+            except Exception:
+                pass
+
         result = check_todos(state, ctx=ctx, todo_file=ctx.todo_file)
         messages = result.get("messages", [])
         state_updates = result.get("state_updates", {})
@@ -967,8 +983,8 @@ def _run_system_action_for_user(action, data, uid, ctx):
                 _log(f"[/system] [{uid}] 时间胶囊读取失败: {e}")
 
             try:
-                from hot_news import fetch_hot_news
-                hot_news = fetch_hot_news(top_n=10)
+                from hot_news import fetch_hot_news_multi
+                hot_news = fetch_hot_news_multi(top_n=5)  # 头条+微博各5条，合并去重
                 if hot_news:
                     context["hot_news"] = hot_news
                     _log(f"[/system] [{uid}] 热点获取成功: {len(hot_news)} 条")

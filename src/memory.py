@@ -329,6 +329,58 @@ def write_state_and_update_cache(state, ctx):
     _update_state_cache(ctx.user_id, state)
 
 
+def distill_memory(ctx):
+    """
+    记忆蒸馏：当 memory.md 超过阈值时，用 LLM 压缩去重，保留精华。
+    建议每周日由 weekly_review 完成后调用一次。
+    返回 True 表示执行了蒸馏，False 表示未达到阈值或失败。
+    """
+    DISTILL_THRESHOLD_CHARS = 3000  # 超过3000字才触发蒸馏
+    memory_file = ctx.memory_file
+    memory_text = ctx.IO.read_text(memory_file)
+
+    if not memory_text or len(memory_text) < DISTILL_THRESHOLD_CHARS:
+        _log(f"[记忆蒸馏] {ctx.user_id} 记忆未达阈值({len(memory_text) if memory_text else 0}字)，跳过")
+        return False
+
+    _log(f"[记忆蒸馏] {ctx.user_id} 开始蒸馏，当前 {len(memory_text)} 字")
+    try:
+        from brain import call_llm
+        prompt = f"""你是记忆整理助手。以下是用户的长期记忆文档，请帮助精简压缩：
+
+**任务**：
+1. 合并重复或相似的条目
+2. 删除已过时或意义不大的信息（如"正在学习XX"变为"已掌握XX"）
+3. 保留所有重要的人物关系、偏好、习惯、重要事件
+4. 保持原有的 ## 章节结构
+5. 每条记忆保持简洁（一行以内）
+6. 总字数控制在原来的60%以内
+
+**原始记忆文档**：
+{memory_text}
+
+请直接输出压缩后的完整 memory.md 内容，不要添加任何说明文字。"""
+
+        messages = [{"role": "user", "content": prompt}]
+        distilled = call_llm(messages, model_tier="main", max_tokens=2000)
+
+        if distilled and len(distilled) > 200:
+            # 备份原始记忆
+            backup_file = memory_file.replace("memory.md", "memory_backup.md")
+            ctx.IO.write_text(backup_file, memory_text)
+            # 写入压缩后的记忆
+            ctx.IO.write_text(memory_file, distilled.strip())
+            _prompt_cache.invalidate(memory_file)
+            _log(f"[记忆蒸馏] {ctx.user_id} 完成: {len(memory_text)} → {len(distilled)} 字，原始备份至 memory_backup.md")
+            return True
+        else:
+            _log(f"[记忆蒸馏] {ctx.user_id} LLM 返回内容异常，跳过")
+            return False
+    except Exception as e:
+        _log(f"[记忆蒸馏] {ctx.user_id} 异常: {e}")
+        return False
+
+
 def invalidate_all_caches():
     """清除所有缓存（定时任务用）"""
     _prompt_cache.invalidate()
