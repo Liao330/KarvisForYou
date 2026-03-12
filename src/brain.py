@@ -1120,10 +1120,12 @@ _SIMPLE_SKILLS = frozenset({
     "hot.news",
     "mood.generate", "voice.journal",
     "settings.nickname", "settings.ai_name", "settings.soul", "settings.info",
+    "settings.skills", "settings.schedule",
     "web.token",
     "habit.propose", "habit.nudge", "habit.status", "habit.complete",
     "decision.record", "dynamic",
     "reflect.push", "reflect.answer", "reflect.skip", "reflect.history",
+    "daily.generate", "weekly.generate", "monthly.generate",
 })
 
 # ── 速记智能过滤：规则预筛跳过集合（V-Web-01）──
