@@ -10,9 +10,9 @@ cd /opt/KarvisForYou
 echo ">>> git pull..."
 git pull origin main
 
-# 重新构建镜像并重启（确保代码变更生效）
-echo ">>> 重新构建并启动 karvis..."
-docker compose -f deploy/docker-compose.yml up --build -d karvis
+# 重启容器（源码已挂载，git pull 后 restart 直接生效）
+echo ">>> 重启 karvis 容器..."
+docker compose -f deploy/docker-compose.yml restart karvis
 
 # 等待健康检查
 echo ">>> 等待服务就绪..."

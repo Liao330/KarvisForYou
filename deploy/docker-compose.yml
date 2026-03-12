@@ -12,6 +12,8 @@ services:
     volumes:
       # 持久化多用户数据（用户目录 + 系统数据 + 令牌 + 用量日志）
       - karvis_data:/app/data
+      # 直接挂载源码目录，git pull 后 restart 即可生效，无需重新 build
+      - /opt/KarvisForYou/src:/app/src
     env_file:
       - ../src/.env
     environment:
