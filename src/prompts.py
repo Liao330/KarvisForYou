@@ -269,7 +269,7 @@ payload 中可能包含 `context` 字段，包含实时的待办列表（todo）
 - 如果 context.due_decisions 存在：提醒有决策待复盘
 
 **【第三层：独立板块（顺序固定，各自独立，有内容才加）】**
-- 📰 今日热点（如果 context.hot_news 存在）：列出前5条热搜标题，一行一条，不要链接，语气轻松
+- 📰 今日热点（如果 context.hot_news 存在）：列出前5条热搜标题，每条一行，如有 url 字段则用 `[标题](url)` markdown 格式输出，语气轻松
 - 📅 时间胶囊（如果 context.time_capsule 有历史记录）：温暖回顾1-2条，如能和今天关联更好；没有记录时完全跳过
 
 **【结尾：Top 3 引导（必须输出）】**
@@ -438,6 +438,7 @@ RULES_SKILLS_MGMT = """## Skill 管理（V12）
 - 用户说"生成日报"、"今日日报"、"发日报" → daily.generate，不传 date（默认今天）
 - 用户说"昨日日报"、"发昨天的日报"、"重新生成昨天日报"、"昨天的总结" → daily.generate，date=昨天日期（YYYY-MM-DD）
 - 用户说"X月X日日报"、"X号的日报"、"重新生成X日日报" → daily.generate，date=对应日期（YYYY-MM-DD）
+- ⚠️ **日报必须走 daily.generate skill**，绝对不能用 internal.read 读文件后自己整理回复——那样会丢失热点链接和格式。无论用户怎么表达（发日报/看日报/昨天总结），只要涉及日报，都必须调用 daily.generate。
 - skill_names 使用 Skill 的全名（如 "decision.*" 匹配所有决策相关 skill，"habit.*" 匹配微习惯相关）
 - 如果用户说的功能名不精确，用你的判断匹配最接近的 skill 名"""
 
