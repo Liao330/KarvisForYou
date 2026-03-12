@@ -1824,7 +1824,7 @@ def _build_health_summary(uid, ctx):
         except Exception:
             pass
 
-    if not hk or not any(hk.get(k) for k in ("steps", "water_ml", "hrv", "rhr")):
+    if not hk or not any(hk.get(k) for k in ("steps", "water_ml", "calories_active")):
         return None  # 没数据就不推
 
     lines = [f"⌚ 今日健康小结 · {today}\n"]
@@ -1845,32 +1845,30 @@ def _build_health_summary(uid, ctx):
         except Exception:
             pass
 
+    calories = hk.get("calories_active")
+    if calories:
+        try:
+            c = int(float(str(calories).split("\n")[0]))
+            if c >= 600:
+                c_comment = "💪 运动量很足"
+            elif c >= 400:
+                c_comment = "👍 活动不错"
+            elif c >= 200:
+                c_comment = "😐 可以多动动"
+            else:
+                c_comment = "🛋️ 今天比较静"
+            lines.append(f"🔥 活动消耗：{c} kcal {c_comment}")
+        except Exception:
+            pass
+
     water = hk.get("water_ml")
     if water:
         try:
             w = int(float(str(water).split("\n")[0]))
-            w_comment = "💧 喝水充足" if w >= 1500 else "💧 记得多喝水"
+            w_comment = "✅ 喝水充足" if w >= 1500 else "💧 记得多喝水"
             lines.append(f"💧 饮水：{w} ml {w_comment}")
         except Exception:
             pass
-
-    hrv = hk.get("hrv")
-    if hrv:
-        try:
-            lines.append(f"❤️ HRV：{float(hrv):.1f} ms")
-        except Exception:
-            pass
-
-    rhr = hk.get("rhr")
-    if rhr:
-        try:
-            lines.append(f"💓 静息心率：{int(float(rhr))} bpm")
-        except Exception:
-            pass
-
-    battery = hk.get("body_battery")
-    if battery is not None:
-        lines.append(f"⚡ 身体电量：{battery}%")
 
     return "\n".join(lines)
 
