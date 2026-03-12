@@ -189,23 +189,22 @@ def format_hot_news_markdown(items, title="🔥 今日热点"):
 
 def format_hot_news_reply(items):
     """
-    企微推送格式（markdown）。
-    使用 [标题](url) 语法，企微 markdown 消息支持可点击链接。
+    企微推送格式（text 消息 + <a> 标签）。
+    企微 text 消息支持 <a href="...">标题</a> 语法，企微/微信均可正常显示。
     """
     if not items:
         return "暂时获取不到热搜数据，稍后再试试吧～"
 
     now = datetime.now(BEIJING_TZ).strftime("%H:%M")
-    lines = [f"**🔥 今日热点（{now}）**", ""]
+    lines = [f"🔥 今日热点 Top {len(items)}：", ""]
     for item in items:
         rank = item["rank"]
         title = item["title"]
         url = item.get("url", "")
-        source = item.get("source", "")
-        source_tag = f"`{source}`" if source else ""
         if url:
-            lines.append(f"{rank}. [{title}]({url}) {source_tag}")
+            lines.append(f'{rank}. <a href="{url}">{title}</a>')
         else:
-            lines.append(f"{rank}. {title} {source_tag}")
+            lines.append(f"{rank}. {title}")
 
+    lines.extend(["", f"📡 来源：今日头条热搜 · {now}"])
     return "\n".join(lines)

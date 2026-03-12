@@ -1065,10 +1065,6 @@ def _run_system_action_for_user(action, data, uid, ctx):
         reply = result.get("reply") if result else None
         if reply:
             _log(f"[system_action] {action}: 发送回复给 {uid}, len={len(reply)}")
-            # 晨报/晚签到/日报统一用 markdown 发送，支持链接渲染
-            if action in ("morning_report", "evening_checkin", "daily_report"):
-                if not reply.startswith("[MARKDOWN]"):
-                    reply = "[MARKDOWN]\n" + reply
             channel_router.send_message(uid, reply)
         _log(f"[system_action] {action} 完成, user={uid}, has_reply={bool(reply)}, 耗时={time.time()-t0:.1f}s")
         return {"ok": True, "has_reply": bool(reply)}
