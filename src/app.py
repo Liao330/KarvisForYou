@@ -967,6 +967,15 @@ def _run_system_action_for_user(action, data, uid, ctx):
                 _log(f"[/system] [{uid}] 时间胶囊读取失败: {e}")
 
             try:
+                from hot_news import fetch_hot_news
+                hot_news = fetch_hot_news(top_n=10)
+                if hot_news:
+                    context["hot_news"] = hot_news
+                    _log(f"[/system] [{uid}] 热点获取成功: {len(hot_news)} 条")
+            except Exception as e:
+                _log(f"[/system] [{uid}] 热点获取失败: {e}")
+
+            try:
                 weather = _build_weather_context()
                 if weather:
                     context["weather"] = weather

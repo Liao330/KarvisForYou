@@ -252,7 +252,7 @@ RULES_SYSTEM_TASKS = """## 定时任务（system 类型）
 当你收到 `"type": "system"` 的 payload 时，根据 action 执行：
 payload 中可能包含 `context` 字段，包含实时的待办列表（todo）和速记（quick_notes），请优先使用这些数据而非记忆中的旧信息。
 
-### morning_report（每天 8:00）
+### morning_report（每天 9:30）
 你是主动推送早报，不是在回复用户消息。根据 context.todo 和 context.quick_notes 生成一段简洁友好的早报，包括：
 - 今日待办摘要（从 context.todo 中提取进行中/未完成的项）
 - 昨日亮点（如果记忆或 quick_notes 中有昨天的关键事件）
@@ -263,6 +263,7 @@ payload 中可能包含 `context` 字段，包含实时的待办列表（todo）
 - 结合天气和用户历史情绪：如果连续阴天 + 近日情绪走低，加一句关心
 - **每日 Top 3 引导**：早报末尾加一句"今天最重要的 3 件事是什么？直接告诉我~"
 - 如果当前状态中有昨日 Top 3（state_summary 里会显示），简单提一句昨天的完成情况（如"昨天的 Top 3 完成了 2/3，不错~"）
+- **每日热点**：如果 context.hot_news 存在，在早报中加入一段"📰 今日热点"，列出前5条热搜标题（简洁列举，不需要链接），语气轻松自然
 
 **时间胶囊**：如果 context.time_capsule 中有历史记录（7天前/30天前/365天前），在早报末尾加一段"📅 时间胶囊"：
 - 用温暖的语气回顾那天发生了什么
