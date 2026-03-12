@@ -1220,10 +1220,14 @@ def api_healthkit():
     data["date"] = date_str
     data["received_at"] = _dt.now(BEIJING_TZ).strftime("%Y-%m-%d %H:%M:%S")
 
-    # 找一个已有用户的 base_dir（单用户场景：DEFAULT_USER_ID）
-    from config import DEFAULT_USER_ID
+    # 找用户 base_dir（单用户场景取第一个活跃用户）
     try:
-        ctx = _get_user_context(DEFAULT_USER_ID)
+        from user_context import UserContext
+        all_users = get_all_active_users()
+        if not all_users:
+            return _json.dumps({"ok": False, "error": "No active users"}, ensure_ascii=False), 500
+        uid = all_users[0]
+        ctx = UserContext(uid)
         cache_dir = os.path.join(ctx.base_dir, "_Karvis", "healthkit")
         os.makedirs(cache_dir, exist_ok=True)
         cache_file = os.path.join(cache_dir, f"{date_str}.json")
