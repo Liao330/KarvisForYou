@@ -805,7 +805,13 @@ def check_todos(state, ctx=None, todo_file=None):
                 remind_time = datetime.strptime(remind_at, "%Y-%m-%d %H:%M")
                 remind_time = remind_time.replace(tzinfo=BEIJING_TZ)
                 diff_minutes = (remind_time - now).total_seconds() / 60
-                if diff_minutes <= 0:
+                overdue_minutes = -diff_minutes  # 正数表示已过期多少分钟
+                if overdue_minutes > 360:
+                    # 过期超过6小时，静默标记为已通知（不再打扰用户）
+                    t["last_notified"] = today_str
+                    t["_expired"] = True
+                    changed = True
+                elif diff_minutes <= 0:
                     messages.append(f"⏰ 提醒：{content}")
                     t["last_notified"] = today_str
                     changed = True
