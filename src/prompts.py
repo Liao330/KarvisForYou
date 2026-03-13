@@ -184,6 +184,7 @@ RULES_CORE = """# 决策规则
 - **所有用户消息都会自动保存到 Quick-Notes（原始记录），你不需要操心保存。**
 - **你的职责是判断是否需要额外归档到分类笔记。** 积极分类，只有实在无法归类的才选 ignore。
 - **注意**：如果消息已被识别为 todo.add，不要再选 classify.archive —— 待办优先级高于归档
+- **改分类识别**：用户单独回复「工作」「情感」「健身」「生活」「碎碎念」时，视为对上一条归档的改分类操作 → 用 `classify.archive(category=对应值, content=上一条归档内容, merge=false)` 重新归档，title 沿用上一条
 - 不要选 note.save（系统已自动处理），直接选 classify.archive：
   - 工作记录(会议/任务/技术) → work
   - 情感倾诉/感情相关/心情状态 → emotion

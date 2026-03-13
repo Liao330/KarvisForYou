@@ -703,6 +703,11 @@ def _build_state_summary(state):
         else:
             parts.append(f"待复盘决策: {len(unreviewed)} 个")
 
+    # 最近归档（用于识别「改为X」改分类操作）
+    last_archive = state.get("last_archive")
+    if last_archive:
+        parts.append(f"上一条归档: 「{last_archive.get('title', '')}」→ {last_archive.get('category', '')}（{last_archive.get('timestamp', '')[:16]}）")
+
     return "\n".join(parts) if parts else "无特殊状态"
 
 
