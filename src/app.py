@@ -2045,8 +2045,32 @@ def _daily_init(uid, ctx):
     today_str = now.strftime("%Y-%m-%d")
 
     if sched.get("_init_date") == today_str:
-        _log(f"[V8][{uid}] daily_init 今天已执行，跳过")
-        return {"skipped": True, "date": today_str}
+        # 已初始化过，但检查是否有新意图类型缺失（比如容器重建后新增了意图）
+        existing_intents = sched.get("intents", [])
+        existing_types = {i.get("type") for i in existing_intents}
+        all_intents = _generate_daily_intents(state, ctx=ctx)
+        new_types = [i for i in all_intents if i.get("type") not in existing_types]
+        if new_types:
+            # 过期的意图标记 skipped
+            now_min = now.hour * 60 + now.minute
+            for intent in new_types:
+                latest = intent.get("latest", "23:59")
+                try:
+                    latest_min = int(latest.split(":")[0]) * 60 + int(latest.split(":")[1])
+                except (ValueError, IndexError):
+                    latest_min = 9999
+                if now_min > latest_min:
+                    intent["status"] = "skipped"
+                    intent["_skip_reason"] = f"补充时已过期（now={now.strftime('%H:%M')} > latest={latest}）"
+            existing_intents.extend(new_types)
+            sched["intents"] = existing_intents
+            from memory import write_state_and_update_cache
+            state["scheduler"] = sched
+            write_state_and_update_cache(state, ctx)
+            _log(f"[V8][{uid}] daily_init 补充新意图类型: {[i['type'] for i in new_types]}")
+        else:
+            _log(f"[V8][{uid}] daily_init 今天已执行，跳过")
+        return {"skipped": True, "date": today_str, "patched": len(new_types)}
 
     # 额外防重复：仅当 _init_date 是今天时，检查意图队列是否已在执行中
     # （跨天场景下旧意图应被新意图覆盖，不阻止初始化）
