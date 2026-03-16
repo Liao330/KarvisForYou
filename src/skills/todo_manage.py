@@ -735,7 +735,7 @@ def check_todos(state, ctx=None, todo_file=None):
 
     todos = state.get("todos", [])
     if not todos:
-        return {"messages": [], "state_updates": {}}
+        return {"messages": [], "exact_messages": [], "state_updates": {}}
 
     # ── 交叉验证 Todo.md ──
     cross_cleaned = 0
@@ -764,6 +764,7 @@ def check_todos(state, ctx=None, todo_file=None):
     now = _now()
     today_str = now.strftime("%Y-%m-%d")
     messages = []
+    exact_messages = []  # 精确时间提醒，单独发送
     changed = migrated or cross_cleaned > 0
 
     for t in todos:
@@ -812,11 +813,11 @@ def check_todos(state, ctx=None, todo_file=None):
                     t["_expired"] = True
                     changed = True
                 elif diff_minutes <= 0:
-                    messages.append(f"⏰ 提醒：{content}")
+                    exact_messages.append(f"⏰ 提醒：{content}")
                     t["last_notified"] = today_str
                     changed = True
                 elif diff_minutes <= 30 and not t.get("pre_notified"):
-                    messages.append(f"⏰ {int(diff_minutes)} 分钟后：{content}")
+                    exact_messages.append(f"⏰ {int(diff_minutes)} 分钟后：{content}")
                     t["pre_notified"] = today_str
                     changed = True
             except ValueError:
@@ -860,7 +861,7 @@ def check_todos(state, ctx=None, todo_file=None):
         state_updates["todos"] = todos
 
     _log(f"[todo.check] 检查 {len(todos)} 条待办, 推送 {len(messages)} 条")
-    return {"messages": messages, "state_updates": state_updates}
+    return {"messages": messages, "exact_messages": exact_messages, "state_updates": state_updates}
 
 
 def _content_in_list(content, content_list):

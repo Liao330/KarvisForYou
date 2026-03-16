@@ -971,8 +971,13 @@ def _run_system_action_for_user(action, data, uid, ctx):
 
         result = check_todos(state, ctx=ctx, todo_file=ctx.todo_file)
         messages = result.get("messages", [])
+        exact_messages = result.get("exact_messages", [])  # 精确时间提醒，单独发
         state_updates = result.get("state_updates", {})
-        _log(f"[system_action] todo_remind: {len(messages)} 条提醒, {len(state_updates)} 个状态更新")
+        _log(f"[system_action] todo_remind: {len(messages)} 条普通提醒, {len(exact_messages)} 条精确提醒, {len(state_updates)} 个状态更新")
+        # 精确时间提醒：单独一条发送，不打包
+        for msg in exact_messages:
+            channel_router.send_message(uid, msg)
+        # 普通待办：打包发
         if messages:
             combined = "📋 待办提醒\n\n" + "\n".join(messages)
             channel_router.send_message(uid, combined)
@@ -2130,6 +2135,8 @@ def _scheduler_tick(uid, ctx):
 
     if not pending:
         _log(f"[V8][{uid}] tick: 无 pending 意图")
+        # 即使无 pending 意图，也检查有无到点的精确时间提醒（绕过间隔限制）
+        _check_and_send_exact_reminders(uid, state, ctx, now)
         return {"evaluated": 0, "executed": 0}
 
     push_count = sched.get("_push_count_today", 0)
@@ -2145,6 +2152,8 @@ def _scheduler_tick(uid, ctx):
             now_min = now.hour * 60 + now.minute
             if now_min - last_min < SCHEDULER_MIN_PUSH_GAP:
                 _log(f"[V8][{uid}] tick: 距上次推送不足 {SCHEDULER_MIN_PUSH_GAP} 分钟，跳过")
+                # 间隔内也要检查精确提醒
+                _check_and_send_exact_reminders(uid, state, ctx, now)
                 return {"evaluated": len(pending), "executed": 0, "reason": "min_gap"}
         except (ValueError, IndexError):
             pass
@@ -2195,6 +2204,23 @@ def _scheduler_tick(uid, ctx):
         write_state_and_update_cache(state, ctx)
     _log(f"[V8][{uid}] tick 完成: 评估 {len(pending)}, 执行 {executed}")
     return {"evaluated": len(pending), "executed": executed}
+
+
+def _check_and_send_exact_reminders(uid, state, ctx, now):
+    """检查并立即发送到点的精确时间提醒（绕过推送间隔限制）"""
+    from skills.todo_manage import check_todos
+    result = check_todos(state, ctx=ctx, todo_file=ctx.todo_file)
+    exact_messages = result.get("exact_messages", [])
+    state_updates = result.get("state_updates", {})
+    if exact_messages:
+        for msg in exact_messages:
+            channel_router.send_message(uid, msg)
+            _log(f"[V8][{uid}] 精确提醒已发送: {msg[:30]}")
+        if state_updates:
+            for k, v in state_updates.items():
+                state[k] = v
+            from memory import write_state_and_update_cache
+            write_state_and_update_cache(state, ctx)
 
 
 def _rule_evaluate(intent, state, now):
