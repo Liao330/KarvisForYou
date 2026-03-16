@@ -2427,9 +2427,13 @@ def _setup_builtin_scheduler():
     _log(f"[Scheduler][V8] 已启动 {len(jobs)} 个任务 "
          f"(心跳={SCHEDULER_TICK_MINUTES}min, 固定=5, 每日初始化=05:00)")
 
-    # 启动时兜底触发一次 daily_init + exact_remind（立即检查有无到点提醒）
-    threading.Thread(target=lambda: _fire_system_action("daily_init"), daemon=True).start()
-    threading.Thread(target=lambda: _fire_system_action("exact_remind"), daemon=True).start()
+    # 启动时立刻触发一次 daily_init + scheduler_tick（不等第一个间隔）
+    import time as _time
+    def _startup_fire():
+        _time.sleep(3)  # 等 Flask 完全启动
+        _fire_system_action("daily_init")
+        _fire_system_action("scheduler_tick")
+    threading.Thread(target=_startup_fire, daemon=True).start()
 
 
 # ============ 启动初始化 ============
