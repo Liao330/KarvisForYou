@@ -801,20 +801,20 @@ def check_todos(state, ctx=None, todo_file=None):
         # ── 一次性定时提醒 ──
         if remind_at and len(remind_at) > 5:
             if t.get("last_notified"):
-                continue  # 已推送过
+                continue  # 已推送过，等待清理
             try:
                 remind_time = datetime.strptime(remind_at, "%Y-%m-%d %H:%M")
                 remind_time = remind_time.replace(tzinfo=BEIJING_TZ)
                 diff_minutes = (remind_time - now).total_seconds() / 60
                 overdue_minutes = -diff_minutes  # 正数表示已过期多少分钟
                 if overdue_minutes > 360:
-                    # 过期超过6小时，静默标记为已通知（不再打扰用户）
+                    # 过期超过6小时，静默标记（待下面清理逻辑删除）
                     t["last_notified"] = today_str
                     t["_expired"] = True
                     changed = True
                 elif diff_minutes <= 0:
                     exact_messages.append(f"⏰ 提醒：{content}")
-                    t["last_notified"] = today_str
+                    t["_delete"] = True  # 推送后标记删除
                     changed = True
                 elif diff_minutes <= 30 and not t.get("pre_notified"):
                     exact_messages.append(f"⏰ {int(diff_minutes)} 分钟后：{content}")
@@ -835,9 +835,18 @@ def check_todos(state, ctx=None, todo_file=None):
                 t["overdue_notified"] = today_str
                 changed = True
 
-    # ── 清理过期一次性待办（已通知且过期 >30天） ──
+    # ── 清理：已推送的一次性提醒 + 过期超6小时 + 超30天旧记录 ──
     cleaned = []
     for t in todos:
+        # 推送后立刻删除
+        if t.get("_delete"):
+            _log(f"[todo.check] 已推送删除: {t.get('content','')}")
+            continue
+        # 过期超6小时静默删除
+        if t.get("_expired"):
+            _log(f"[todo.check] 过期静默删除: {t.get('content','')}")
+            continue
+        # 旧逻辑：超30天的过期待办
         if not t.get("recur"):
             due = t.get("due_date", "")
             notified = t.get("last_notified", "")
