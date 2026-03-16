@@ -2408,11 +2408,8 @@ def _setup_builtin_scheduler():
         ("monthly_review",  {"trigger": "cron", "day": "last", "hour": 22, "minute": 0}),
         ("finance_monthly_report", {"trigger": "cron", "day": 8, "hour": 20, "minute": 0}),
 
-        # V8 新增：智能调度心跳
+        # V8 新增：智能调度心跳（每5分钟）
         ("scheduler_tick",  {"trigger": "interval", "minutes": SCHEDULER_TICK_MINUTES}),
-
-        # 精确提醒检查（每5分钟，独立于主 tick，绕过间隔限制）
-        ("exact_remind",    {"trigger": "interval", "minutes": 5}),
 
         # V8 新增：每日意图初始化
         ("daily_init",      {"trigger": "cron", "hour": 5, "minute": 0}),
