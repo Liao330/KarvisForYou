@@ -2174,6 +2174,8 @@ def _scheduler_tick(uid, ctx):
             intent["_skip_reason"] = "rule_skip"
 
     if not ready:
+        # 无意图执行，但仍然检查精确时间提醒
+        _check_and_send_exact_reminders(uid, state, ctx, now)
         write_state_and_update_cache(state, ctx)
         _log(f"[V8][{uid}] tick: 评估 {len(pending)} 个意图，无需执行")
         return {"evaluated": len(pending), "executed": 0}
