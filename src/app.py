@@ -894,7 +894,7 @@ def system_endpoint():
             return json.dumps({"ok": True, "action": "refresh_cache", "tokens_cleaned": removed})
 
         # V8: 智能调度引擎（daily_init / scheduler_tick 遍历所有用户）
-        if action in ("daily_init", "scheduler_tick"):
+        if action in ("daily_init", "scheduler_tick", "exact_remind"):
             user_ids = [target_user] if target_user else get_all_active_users()
             results = []
             for uid in user_ids:
@@ -902,6 +902,12 @@ def system_endpoint():
                     ctx, _ = get_or_create_user(uid)
                     if action == "daily_init":
                         r = _daily_init(uid, ctx)
+                    elif action == "exact_remind":
+                        # 精确提醒专用：只检查到点的精确时间提醒，不走完整 tick
+                        state = read_state_cached(ctx) or {}
+                        now = datetime.now(BEIJING_TZ)
+                        _check_and_send_exact_reminders(uid, state, ctx, now)
+                        r = {"ok": True, "action": "exact_remind"}
                     else:
                         r = _scheduler_tick(uid, ctx)
                     results.append({"user_id": uid, **r})
@@ -2405,6 +2411,9 @@ def _setup_builtin_scheduler():
         # V8 新增：智能调度心跳
         ("scheduler_tick",  {"trigger": "interval", "minutes": SCHEDULER_TICK_MINUTES}),
 
+        # 精确提醒检查（每5分钟，独立于主 tick，绕过间隔限制）
+        ("exact_remind",    {"trigger": "interval", "minutes": 5}),
+
         # V8 新增：每日意图初始化
         ("daily_init",      {"trigger": "cron", "hour": 5, "minute": 0}),
     ]
@@ -2421,8 +2430,9 @@ def _setup_builtin_scheduler():
     _log(f"[Scheduler][V8] 已启动 {len(jobs)} 个任务 "
          f"(心跳={SCHEDULER_TICK_MINUTES}min, 固定=5, 每日初始化=05:00)")
 
-    # 启动时兜底触发一次 daily_init
+    # 启动时兜底触发一次 daily_init + exact_remind（立即检查有无到点提醒）
     threading.Thread(target=lambda: _fire_system_action("daily_init"), daemon=True).start()
+    threading.Thread(target=lambda: _fire_system_action("exact_remind"), daemon=True).start()
 
 
 # ============ 启动初始化 ============
